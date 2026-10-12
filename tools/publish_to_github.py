@@ -81,38 +81,56 @@ def call(method: str, path: str, body=None, tok: str = "", expect=(200, 201), ra
 
 
 def upload_asset(release: dict, path: str, tok: str):
-    """Uploads one release asset, replacing an existing asset of the same name."""
-    name = os.path.basename(path)
-    size = os.path.getsize(path)
-    with open(path, "rb") as f:
-        payload = f.read()
+    """
+    Uploads one release asset, replacing an existing asset of the same name.
 
-    upload_url = f"{release['upload_url'].split('{{')[0]}?name={urllib.parse.quote(name)}"
-    headers = {
-        "Authorization": f"Bearer {tok}",
-        "User-Agent": UA,
-        "Content-Type": "application/octet-stream",
-        "Content-Length": str(len(payload)),
-    }
-    req = urllib.request.Request(upload_url, data=payload, headers=headers, method="POST")
+    Uses curl: the releases upload host rejects urllib's request body with
+    "Multipart form data required" (400) even for a plain octet-stream body.
+    The token goes into a 0600 --config file, so it never appears in argv / ps.
+    """
+    import subprocess
+    import tempfile
+
+    name = os.path.basename(path)
+    url = f"{release['upload_url'].split('{')[0]}?name={urllib.parse.quote(name)}"
+
+    with tempfile.NamedTemporaryFile("w", suffix=".curlrc", delete=False) as cfg:
+        cfg.write(f'header = "Authorization: Bearer {tok}"\n'
+                  f'header = "User-Agent: {UA}"\n'
+                  'header = "Content-Type: application/octet-stream"\n')
+        cfg_path = cfg.name
+    os.chmod(cfg_path, 0o600)
+
+    def once():
+        proc = subprocess.run(
+            ["curl", "-s", "-K", cfg_path, "-o", "-", "-w", "\n%{http_code}",
+             "-X", "POST", "--data-binary", f"@{path}", url],
+            capture_output=True, timeout=900)
+        out = proc.stdout.decode("utf-8", "replace")
+        body, _, code = out.rpartition("\n")
+        try:
+            return int(code), json.loads(body)
+        except Exception:
+            return 0, {"message": body[:300]}
+
     try:
-        with urllib.request.urlopen(req, timeout=900) as resp:
-            return resp.status, json.loads(resp.read().decode())
-    except urllib.error.HTTPError as e:
-        detail = e.read().decode("utf-8", "replace")[:400]
-        if e.code == 422 and "already_exists" in detail:
-            # replace it: delete the old asset, then upload once more
-            status, assets = call("GET", f"/repos/{release['_owner']}/{release['_repo']}/releases/{release['id']}/assets", tok=tok)
-            if status == 200:
+        status, res = once()
+        if status in (400, 422) and ("already_exists" in str(res) or status == 422):
+            # replace it: drop the old asset, then upload once more
+            st, assets = call("GET", f"/repos/{release['_owner']}/{release['_repo']}"
+                                     f"/releases/{release['id']}/assets", tok=tok)
+            if st == 200:
                 for a in assets:
                     if a.get("name") == name:
-                        call("DELETE", f"/repos/{release['_owner']}/{release['_repo']}/releases/assets/{a['id']}", tok=tok)
-            req = urllib.request.Request(upload_url, data=payload, headers=headers, method="POST")
-            with urllib.request.urlopen(req, timeout=900) as resp:
-                return resp.status, json.loads(resp.read().decode())
-        return e.code, {"message": detail}
+                        call("DELETE", f"/repos/{release['_owner']}/{release['_repo']}"
+                                      f"/releases/assets/{a['id']}", tok=tok)
+            status, res = once()
+        return status, res
     finally:
-        payload = b""  # let the buffer go
+        try:
+            os.remove(cfg_path)
+        except OSError:
+            pass
 
 
 def push_files(owner: str, repo: str, specs, message: str, tok: str, note: str = ""):
@@ -141,6 +159,11 @@ def put_file(owner: str, repo: str, path: str, content: bytes, message: str, tok
     status, existing = call("GET", f"/repos/{owner}/{repo}/contents/{path}", tok=tok, expect=(200, 404))
     body = {"message": message, "content": base64.b64encode(content).decode()}
     if status == 200 and isinstance(existing, dict) and "sha" in existing:
+        try:  # identical content -> leave it alone instead of writing an empty commit
+            if existing.get("encoding") == "base64" and base64.b64decode(existing["content"]) == content:
+                return 200, existing
+        except Exception:
+            pass
         body["sha"] = existing["sha"]
     return call("PUT", f"/repos/{owner}/{repo}/contents/{path}", body, tok=tok, expect=(200, 201))
 
