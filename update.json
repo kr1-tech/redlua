@@ -1,0 +1,9 @@
+{
+  "versionName": "1.3.0",
+  "versionCode": 4,
+  "notes": "Red floats on the home screen - drag it, tap it to chat; in-app updates with one tap; every script runs as Luau",
+  "apkUrl": "https://github.com/kr1-tech/redlua/releases/download/v1.3.0/RedLua-1.3.0.apk",
+  "sizeBytes": 12356912,
+  "required": false,
+  "sha256": "1a620865fdf2478a62576ea3c95a221ce39f648bd5cde7215ce083bf24d70e9d"
+}
