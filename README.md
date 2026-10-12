@@ -5,7 +5,7 @@ backend the installed app reads.
 
 | | |
 |---|---|
-| **Latest** | **RedLua 1.3.0** — [download the APK](https://github.com/kr1-tech/redlua/releases/latest) |
+| **Latest** | **RedLua 1.3.1** — [download the APK](https://github.com/kr1-tech/redlua/releases/latest) |
 | **Manifest** | [`update.json`](update.json) — the file the in-app updater reads |
 | **Requires** | Android 8.0+ |
 | **Size** | ~12 MB, signed, no accounts, no analytics |
@@ -30,7 +30,8 @@ A pocket-sized Luau workbench that never touches the network unless you ask it t
   there is no cloud model behind it.
 - **Learn Luau** — nine lessons (~67 min) with runnable examples; the published "expected output"
   is asserted against the real interpreter by the test suite, so the course cannot drift.
-- **Updates** — opt-in "new update available!" with one-tap install, driven by `update.json`.
+- **Updates** — works out of the box: the feed ships with the app, checking is one tap, and a
+  "NEW UPDATE AVAILABLE!" banner installs the new build for you.
 
 ## Install
 
@@ -39,16 +40,17 @@ installing from this source once.
 
 ## Enable in-app updates
 
-1. Install once by hand (a build without an updater cannot be told about one).
-2. **Settings → Updates** → switch *Check for updates* on.
-3. Paste this URL:
+From **1.3.1** there is nothing to type: the feed below ships with the app.
 
-   ```
-   https://raw.githubusercontent.com/kr1-tech/redlua/main/update.json
-   ```
+1. Install RedLua by hand once (a build older than 1.3.0 has no updater inside it).
+2. **Settings → Updates** → tap **Turn on automatic updates** (or the card on the home screen).
 
-4. From then on, a newer release shows the banner on Home with a one-tap install. Android always
-   asks you to confirm; nothing installs silently.
+That is the whole setup — one tap. The app already knows to read
+`https://raw.githubusercontent.com/kr1-tech/redlua/main/update.json`; that address is still an
+editable field if you ever want to point it somewhere else.
+
+From then on, a newer release shows the banner on Home with a one-tap install. Android always asks
+you to confirm; nothing installs silently.
 
 Update checks are **off by default**. With them off, the app makes no network requests at all.
 
